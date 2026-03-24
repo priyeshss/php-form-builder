@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FormCraft — Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d0f1a; --card: #13162a; --accent: #5b7cfa; --accent-h: #4366e8;
+      --text: #e8eaf6; --muted: #7a7f9a; --border: #232644; --error: #ff6b6b;
+      --radius: 12px;
+    }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      padding: 1.5rem;
+    }
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(91,124,250,.18) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .card {
+      position: relative; z-index: 1;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 20px; padding: 3rem 2.5rem;
+      width: 100%; max-width: 420px;
+      box-shadow: 0 24px 64px rgba(0,0,0,.5);
+    }
+    .logo {
+      font-family: 'Syne', sans-serif; font-weight: 800;
+      font-size: 1.7rem; color: var(--accent); letter-spacing: -.02em;
+      margin-bottom: .3rem;
+    }
+    .logo span { color: var(--text); }
+    .subtitle { color: var(--muted); font-size: .9rem; margin-bottom: 2.2rem; }
+
+    .field { margin-bottom: 1.3rem; }
+    label { display: block; font-size: .85rem; font-weight: 600; color: var(--muted); margin-bottom: .45rem; letter-spacing: .04em; text-transform: uppercase; }
+    input {
+      width: 100%; padding: .75rem 1rem;
+      background: var(--bg); border: 1.5px solid var(--border);
+      border-radius: var(--radius); color: var(--text);
+      font-family: inherit; font-size: .95rem; outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(91,124,250,.15); }
+
+    .btn {
+      margin-top: 1rem; width: 100%; padding: .85rem;
+      background: var(--accent); color: #fff;
+      border: none; border-radius: var(--radius);
+      font-family: inherit; font-size: 1rem; font-weight: 600;
+      cursor: pointer; transition: background .2s;
+    }
+    .btn:hover { background: var(--accent-h); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    #error-msg {
+      display: none; background: rgba(255,107,107,.12);
+      border: 1px solid rgba(255,107,107,.3);
+      color: var(--error); border-radius: var(--radius);
+      padding: .75rem 1rem; font-size: .88rem; margin-bottom: 1.2rem;
+    }
+    #error-msg.show { display: block; }
+
+    .hint { text-align: center; color: var(--muted); font-size: .8rem; margin-top: 1.5rem; }
+    .hint code { color: var(--accent); background: rgba(91,124,250,.1); padding: 1px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">Form<span>Craft</span></div>
+  <div class="subtitle">Sign in to your admin panel</div>
+
+  <div id="error-msg"></div>
+
+  <form id="login-form">
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="email" placeholder="admin@admin.com" required autocomplete="email" />
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password" />
+    </div>
+    <button type="submit" class="btn" id="login-btn">Sign In</button>
+  </form>
+
+  <p class="hint">Default: <code>admin@admin.com</code> / <code>Admin@1234</code></p>
+</div>
+
+<script>
+// Build absolute API URL
+const _parts   = location.pathname.split('/').filter(Boolean);
+const _rootIdx = _parts.findIndex(p => p === 'php-form-builder');
+const _root    = _rootIdx >= 0 ? '/' + _parts.slice(0, _rootIdx + 1).join('/') : '';
+const API      = location.origin + _root + '/api/index.php';
+const APP_ROOT = location.origin + _root;
+
+// Already logged in → go to dashboard
+if (localStorage.getItem('access_token')) {
+  location.href = APP_ROOT + '/admin/dashboard.html';
+}
+
+document.getElementById('login-form').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  const btn = document.getElementById('login-btn');
+  const err = document.getElementById('error-msg');
+  err.classList.remove('show');
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+
+  try {
+    const res  = await fetch(API + '/auth/login', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email:    document.getElementById('email').value.trim(),
+        password: document.getElementById('password').value,
+      }),
+    });
+
+    // Check for non-JSON response (Apache error, wrong URL, etc.)
+    const ct = res.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      const text = await res.text();
+      throw new Error('Unexpected server response (HTTP ' + res.status + '). URL: ' + API + '/auth/login');
+    }
+
+    const data = await res.json();
+
+    if (data.success) {
+      localStorage.setItem('access_token',  data.data.access_token);
+      localStorage.setItem('refresh_token', data.data.refresh_token);
+      localStorage.setItem('user',          JSON.stringify(data.data.user));
+      location.href = APP_ROOT + '/admin/dashboard.html';
+    } else {
+      err.textContent = data.message || 'Login failed.';
+      err.classList.add('show');
+    }
+  } catch (e) {
+    err.textContent = e.message || 'Network error. Please try again.';
+    err.classList.add('show');
+    console.error('Login error:', e);
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = 'Sign In';
+  }
+});
+</script>
+</body>
+</html>

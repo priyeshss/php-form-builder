@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FormCraft — Submissions</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="../../assets/css/admin.css"/>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-logo">Form<span>Craft</span></div>
+    <nav class="sidebar-nav">
+      <a href="../dashboard.html" class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Forms
+      </a>
+    </nav>
+    <div class="sidebar-user">
+      <div class="user-avatar" id="user-initial">A</div>
+      <div class="user-info">
+        <div class="user-name" id="user-name">Admin</div>
+        <div class="user-role">Administrator</div>
+      </div>
+      <button class="logout-btn" id="logout-btn" title="Logout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <a href="../dashboard.html" class="back-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          Back to Forms
+        </a>
+        <h1 class="page-title" id="page-title">Submissions</h1>
+        <p class="page-sub" id="page-sub"></p>
+      </div>
+      <div style="display:flex;gap:.7rem;align-items:center">
+        <a id="builder-link" href="#" class="btn-ghost" style="font-size:.88rem;padding:.55rem 1rem;">Edit Fields</a>
+        <button class="btn-primary" id="export-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export CSV
+        </button>
+      </div>
+    </header>
+
+    <div style="padding:0 2.2rem 2.2rem">
+      <div id="submissions-wrap">
+        <div class="empty-state"><div class="spinner"></div><p>Loading…</p></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="detail-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Submission Detail</h2>
+      <button class="modal-close" id="detail-close">✕</button>
+    </div>
+    <div class="modal-body" id="detail-body">
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" id="detail-cancel">Close</button>
+    </div>
+  </div>
+</div>
+
+<script src="../../assets/js/api.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const formId = params.get('form_id');
+if (!formId) location.href = '../dashboard.html';
+
+Auth.init();
+const user = Auth.getUser();
+if (user) {
+  document.getElementById('user-name').textContent    = user.name;
+  document.getElementById('user-initial').textContent = user.name[0].toUpperCase();
+}
+document.getElementById('logout-btn').onclick = () => Auth.logout();
+document.getElementById('builder-link').href = `../forms/builder.html?id=${formId}`;
+
+let formFields = [];
+let allSubmissions = [];
+
+async function loadAll() {
+  // Load form name
+  const fd = await API.get(`/forms/${formId}`);
+  if (!fd.success) { document.getElementById('submissions-wrap').innerHTML = `<p style="color:var(--error)">${fd.message}</p>`; return; }
+  document.getElementById('page-title').textContent = `${fd.data.name} — Submissions`;
+  document.getElementById('page-sub').textContent   = fd.data.description || '';
+  document.title = `${fd.data.name} Submissions`;
+  formFields = fd.data.fields || [];
+
+  // Load submissions
+  const sd = await API.get(`/forms/${formId}/submissions`);
+  if (!sd.success) { document.getElementById('submissions-wrap').innerHTML = `<p style="color:var(--error)">${sd.message}</p>`; return; }
+  allSubmissions = sd.data || [];
+  renderTable();
+}
+
+function renderTable() {
+  const wrap = document.getElementById('submissions-wrap');
+  if (!allSubmissions.length) {
+    wrap.innerHTML = `<div class="empty-state">
+      <svg viewBox="0 0 64 64" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--border2);margin-bottom:.8rem">
+        <rect x="8" y="8" width="48" height="48" rx="6"/>
+        <line x1="20" y1="24" x2="44" y2="24"/>
+        <line x1="20" y1="32" x2="44" y2="32"/>
+        <line x1="20" y1="40" x2="36" y2="40"/>
+      </svg>
+      <p>No submissions yet</p>
+    </div>`;
+    return;
+  }
+
+  const headers = ['#', 'Submitted At', 'IP Address', ...formFields.map(f => esc(f.label)), 'Actions'];
+
+  wrap.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
+        </thead>
+        <tbody>
+          ${allSubmissions.map((sub, i) => {
+            const valMap = {};
+            (sub.values || []).forEach(v => { valMap[v.field_id] = v.value; });
+            return `<tr>
+              <td style="color:var(--muted)">${sub.id}</td>
+              <td style="white-space:nowrap">${formatDate(sub.submitted_at)}</td>
+              <td style="color:var(--muted);font-size:.82rem">${sub.ip_address || '—'}</td>
+              ${formFields.map(f => {
+                const val = valMap[f.id] || '';
+                return `<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(val)}">${val ? esc(val) : '<span style="color:var(--muted)">—</span>'}</td>`;
+              }).join('')}
+              <td><button class="btn-sm" onclick="openDetail(${i})">View</button></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function openDetail(index) {
+  const sub    = allSubmissions[index];
+  const valMap = {};
+  (sub.values || []).forEach(v => { valMap[v.field_id] = v.value; });
+
+  document.getElementById('detail-body').innerHTML = `
+    <div style="display:flex;gap:1.5rem;margin-bottom:1.2rem;flex-wrap:wrap">
+      <div><div style="font-size:.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.25rem">Submitted</div>
+      <div>${formatDate(sub.submitted_at)}</div></div>
+      <div><div style="font-size:.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.25rem">IP Address</div>
+      <div style="font-family:monospace;font-size:.88rem">${sub.ip_address || '—'}</div></div>
+    </div>
+    <div class="submission-values">
+      ${formFields.map(f => {
+        const val = valMap[f.id] || '';
+        return `<div class="sv-row">
+          <div class="sv-label">${esc(f.label)}</div>
+          <div class="sv-value">${val ? esc(val) : '<span style="color:var(--muted)">—</span>'}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+
+  document.getElementById('detail-modal').classList.add('open');
+}
+
+['detail-close','detail-cancel'].forEach(id =>
+  document.getElementById(id).onclick = () => document.getElementById('detail-modal').classList.remove('open'));
+
+document.getElementById('export-btn').onclick = () => {
+  const token = Auth.getToken();
+  window.open(`../../api/index.php/forms/${formId}/submissions/export?token=${token}`, '_blank');
+};
+
+function formatDate(str) {
+  return new Date(str).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+loadAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FormCraft — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="../assets/css/admin.css"/>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">Form<span>Craft</span></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html" class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Forms
+      </a>
+    </nav>
+    <div class="sidebar-user">
+      <div class="user-avatar" id="user-initial">A</div>
+      <div class="user-info">
+        <div class="user-name" id="user-name">Admin</div>
+        <div class="user-role">Administrator</div>
+      </div>
+      <button class="logout-btn" id="logout-btn" title="Logout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <h1 class="page-title">My Forms</h1>
+        <p class="page-sub">Build and manage your forms</p>
+      </div>
+      <button class="btn-primary" id="new-form-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New Form
+      </button>
+    </header>
+
+    <div id="forms-grid" class="forms-grid">
+      <div class="empty-state" id="loading-state">
+        <div class="spinner"></div>
+        <p>Loading forms…</p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Create/Edit Form Modal -->
+<div class="modal-overlay" id="form-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-title">New Form</h2>
+      <button class="modal-close" id="modal-close-btn">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-field">
+        <label>Form Name <span class="req">*</span></label>
+        <input type="text" id="f-name" placeholder="e.g. Contact Us" maxlength="200"/>
+        <div class="field-error" id="err-f-name"></div>
+      </div>
+      <div class="form-field">
+        <label>Description</label>
+        <textarea id="f-description" placeholder="Describe your form…" rows="3"></textarea>
+      </div>
+      <div class="form-field" id="active-row" style="display:none">
+        <label class="toggle-label">
+          <input type="checkbox" id="f-active" checked/>
+          <span>Form is active (accepts submissions)</span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" id="modal-cancel-btn">Cancel</button>
+      <button class="btn-primary" id="modal-save-btn">Create Form</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2>Delete Form?</h2>
+      <button class="modal-close" id="delete-close-btn">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--muted);font-size:.93rem;line-height:1.6">
+        This will permanently delete the form <strong id="delete-form-name"></strong> and all its submissions. This action cannot be undone.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" id="delete-cancel-btn">Cancel</button>
+      <button class="btn-danger" id="delete-confirm-btn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="../assets/js/api.js"></script>
+<script>
+let editingFormId = null;
+let deletingFormId = null;
+
+// ── Load forms ────────────────────────────────────────────────
+async function loadForms() {
+  const grid = document.getElementById('forms-grid');
+  try {
+    const data = await API.get('/forms');
+    if (!data.success) throw new Error(data.message);
+
+    if (!data.data.length) {
+      grid.innerHTML = `
+        <div class="empty-state">
+          <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.5" width="56" height="56" style="color:var(--muted);margin-bottom:.8rem">
+            <rect x="8" y="8" width="48" height="48" rx="6"/>
+            <line x1="20" y1="24" x2="44" y2="24"/>
+            <line x1="20" y1="32" x2="44" y2="32"/>
+            <line x1="20" y1="40" x2="36" y2="40"/>
+          </svg>
+          <p>No forms yet. Create your first form!</p>
+        </div>`;
+      return;
+    }
+
+    grid.innerHTML = data.data.map(form => `
+      <div class="form-card" data-id="${form.id}">
+        <div class="form-card-header">
+          <div class="form-card-status ${form.is_active == 1 ? 'active' : 'inactive'}">
+            ${form.is_active == 1 ? 'Active' : 'Inactive'}
+          </div>
+          <div class="form-card-actions">
+            <button class="icon-btn" title="Edit" onclick="openEdit(${form.id}, event)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button class="icon-btn danger" title="Delete" onclick="openDelete(${form.id}, '${esc(form.name)}', event)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            </button>
+          </div>
+        </div>
+        <h3 class="form-card-title">${esc(form.name)}</h3>
+        <p class="form-card-desc">${form.description ? esc(form.description) : '<em style="color:var(--muted)">No description</em>'}</p>
+        <div class="form-card-meta">
+          <span>${form.field_count} field${form.field_count != 1 ? 's' : ''}</span>
+          <span>${form.submission_count} submission${form.submission_count != 1 ? 's' : ''}</span>
+          <span>${relativeTime(form.created_at)}</span>
+        </div>
+        <div class="form-card-footer">
+          <a href="forms/builder.html?id=${form.id}" class="btn-sm">Build Fields</a>
+          <a href="submissions/index.html?form_id=${form.id}" class="btn-sm btn-ghost-sm">View Submissions</a>
+          <a href="../public/form.html?id=${form.id}" target="_blank" class="btn-sm btn-ghost-sm">Preview ↗</a>
+        </div>
+      </div>`).join('');
+  } catch (err) {
+    grid.innerHTML = `<div class="empty-state"><p style="color:var(--error)">${err.message}</p></div>`;
+  }
+}
+
+// ── New / Edit form modal ─────────────────────────────────────
+document.getElementById('new-form-btn').onclick = () => openCreate();
+
+function openCreate() {
+  editingFormId = null;
+  document.getElementById('modal-title').textContent      = 'New Form';
+  document.getElementById('modal-save-btn').textContent   = 'Create Form';
+  document.getElementById('f-name').value                 = '';
+  document.getElementById('f-description').value         = '';
+  document.getElementById('active-row').style.display    = 'none';
+  document.getElementById('err-f-name').textContent      = '';
+  openModal('form-modal');
+}
+
+function openEdit(id, e) {
+  e.stopPropagation();
+  editingFormId = id;
+  const card    = document.querySelector(`.form-card[data-id="${id}"]`);
+  document.getElementById('modal-title').textContent    = 'Edit Form';
+  document.getElementById('modal-save-btn').textContent = 'Save Changes';
+  document.getElementById('f-name').value               = card.querySelector('.form-card-title').textContent;
+  const descEl = card.querySelector('.form-card-desc em');
+  document.getElementById('f-description').value        = descEl ? '' : card.querySelector('.form-card-desc').textContent;
+  document.getElementById('f-active').checked           = card.querySelector('.form-card-status').classList.contains('active');
+  document.getElementById('active-row').style.display   = 'block';
+  document.getElementById('err-f-name').textContent     = '';
+  openModal('form-modal');
+}
+
+document.getElementById('modal-save-btn').onclick = async () => {
+  const name = document.getElementById('f-name').value.trim();
+  const errEl = document.getElementById('err-f-name');
+  if (!name) { errEl.textContent = 'Form name is required.'; return; }
+  errEl.textContent = '';
+
+  const payload = {
+    name:        name,
+    description: document.getElementById('f-description').value.trim(),
+    is_active:   document.getElementById('f-active').checked ? 1 : 0,
+  };
+
+  const btn = document.getElementById('modal-save-btn');
+  btn.disabled = true;
+
+  try {
+    let data;
+    if (editingFormId) {
+      data = await API.put(`/forms/${editingFormId}`, payload);
+    } else {
+      data = await API.post('/forms', payload);
+    }
+    if (!data.success) throw new Error(data.message);
+    closeModal('form-modal');
+    loadForms();
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+['modal-close-btn','modal-cancel-btn'].forEach(id =>
+  document.getElementById(id).onclick = () => closeModal('form-modal'));
+
+// ── Delete modal ──────────────────────────────────────────────
+function openDelete(id, name, e) {
+  e.stopPropagation();
+  deletingFormId = id;
+  document.getElementById('delete-form-name').textContent = `"${name}"`;
+  openModal('delete-modal');
+}
+
+document.getElementById('delete-confirm-btn').onclick = async () => {
+  const btn = document.getElementById('delete-confirm-btn');
+  btn.disabled = true;
+  try {
+    const data = await API.delete(`/forms/${deletingFormId}`);
+    if (!data.success) throw new Error(data.message);
+    closeModal('delete-modal');
+    loadForms();
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+['delete-close-btn','delete-cancel-btn'].forEach(id =>
+  document.getElementById(id).onclick = () => closeModal('delete-modal'));
+
+// ── Helpers ───────────────────────────────────────────────────
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function relativeTime(dateStr) {
+  const diff = (Date.now() - new Date(dateStr)) / 1000;
+  if (diff < 60)     return 'just now';
+  if (diff < 3600)   return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400)  return `${Math.floor(diff/3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff/86400)}d ago`;
+  return new Date(dateStr).toLocaleDateString();
+}
+
+function esc(s) {
+  return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init ──────────────────────────────────────────────────────
+Auth.init();
+const user = Auth.getUser();
+if (user) {
+  document.getElementById('user-name').textContent    = user.name;
+  document.getElementById('user-initial').textContent = user.name[0].toUpperCase();
+}
+
+document.getElementById('logout-btn').onclick = async () => {
+  await Auth.logout();
+};
+
+loadForms();
+</script>
+</body>
+</html>

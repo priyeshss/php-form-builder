@@ -1,0 +1,25 @@
+Options -Indexes
+AcceptPathInfo On
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /php-form-builder/
+
+    # Pass Authorization header through to PHP (Apache strips it by default)
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Route all /api/* requests through api/index.php
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^api/(.*)$ api/index.php/$1 [QSA,L]
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+</IfModule>
+
+<FilesMatch "\.(env|sql|md|lock)$">
+    Require all denied
+</FilesMatch>

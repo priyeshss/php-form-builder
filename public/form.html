@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Form</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #f5f3ef;
+      --card:      #ffffff;
+      --accent:    #2a4dd0;
+      --accent-h:  #1a3ab0;
+      --text:      #1a1a2e;
+      --muted:     #6b6b7b;
+      --border:    #d8d5ce;
+      --error:     #c0392b;
+      --success:   #1e8e5e;
+      --radius:    10px;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 18px;
+      padding: 2.5rem 2.5rem 3rem;
+      max-width: 640px;
+      width: 100%;
+      box-shadow: 0 4px 32px rgba(0,0,0,.07), 0 1px 4px rgba(0,0,0,.04);
+    }
+
+    .form-header { margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; }
+    .form-header h1 { font-family: 'DM Serif Display', serif; font-size: 1.9rem; color: var(--text); line-height: 1.2; }
+    .form-header p  { color: var(--muted); margin-top: .5rem; font-size: .95rem; line-height: 1.6; }
+
+    .field-group { margin-bottom: 1.4rem; }
+    label { display: block; font-weight: 600; font-size: .9rem; color: var(--text); margin-bottom: .45rem; }
+    label .req { color: var(--error); margin-left: 3px; }
+
+    input[type=text], input[type=email], input[type=number], textarea, select {
+      width: 100%; padding: .7rem 1rem;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      font-family: inherit; font-size: .95rem;
+      color: var(--text); background: #fafaf8;
+      transition: border-color .2s, box-shadow .2s;
+      outline: none;
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(42,77,208,.12);
+      background: #fff;
+    }
+    textarea { resize: vertical; min-height: 110px; }
+
+    .radio-group, .checkbox-group { display: flex; flex-direction: column; gap: .55rem; margin-top: .1rem; }
+    .option-item { display: flex; align-items: center; gap: .6rem; cursor: pointer; }
+    .option-item input { width: 17px; height: 17px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+    .option-item span { font-size: .95rem; color: var(--text); }
+
+    .field-error { color: var(--error); font-size: .82rem; margin-top: .35rem; display: none; }
+    .field-error.show { display: block; }
+    input.invalid, textarea.invalid, select.invalid { border-color: var(--error); }
+
+    .btn-submit {
+      margin-top: 2rem; width: 100%;
+      padding: .85rem 1.5rem;
+      background: var(--accent); color: #fff;
+      border: none; border-radius: var(--radius);
+      font-family: inherit; font-size: 1rem; font-weight: 600;
+      cursor: pointer; transition: background .2s, transform .1s;
+      letter-spacing: .02em;
+    }
+    .btn-submit:hover { background: var(--accent-h); }
+    .btn-submit:active { transform: scale(.98); }
+    .btn-submit:disabled { background: #9ca3c8; cursor: not-allowed; }
+
+    #form-message {
+      display: none; padding: 1rem 1.2rem;
+      border-radius: var(--radius); margin-bottom: 1.5rem;
+      font-size: .9rem; font-weight: 500;
+    }
+    #form-message.success { background: #d4f1e6; color: var(--success); display: block; }
+    #form-message.error   { background: #fde8e6; color: var(--error);   display: block; }
+
+    .loading { text-align: center; color: var(--muted); padding: 3rem 0; font-size: 1rem; }
+    .spinner {
+      width: 36px; height: 36px; border: 3px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin .7s linear infinite; margin: 0 auto 1rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div id="form-container">
+    <div class="loading"><div class="spinner"></div>Loading form…</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // Read form ID from URL: /public/form.html?id=5
+  const params  = new URLSearchParams(location.search);
+  const formId  = params.get('id');
+  const parts = location.pathname.split('/'); const rootIdx = parts.findIndex(p => p === 'php-form-builder'); const API_BASE = (rootIdx >= 0 ? parts.slice(0, rootIdx + 1).join('/') : '..') + '/api/index.php';
+
+  if (!formId) {
+    document.getElementById('form-container').innerHTML = '<p style="color:var(--error);text-align:center">No form ID specified.</p>';
+    return;
+  }
+
+  // ── Fetch form fields (public endpoint — submissions/store only; fields via show require auth)
+  // We hit a dedicated public endpoint: GET /api/forms/{id}/public
+  // Because show.php requires auth, we'll use a lightweight public reader below.
+  // The public endpoint is handled by public/form-data.php
+  fetch(`${API_BASE.replace('/api/index.php', '')}/public/form-data.php?id=${formId}`)
+    .then(r => r.json())
+    .then(data => {
+      if (!data.success) throw new Error(data.message || 'Form not found.');
+      renderForm(data.data);
+    })
+    .catch(err => {
+      document.getElementById('form-container').innerHTML =
+        `<p style="color:var(--error);text-align:center;padding:2rem">${err.message}</p>`;
+    });
+
+  function renderForm(form) {
+    const fields = form.fields || [];
+    let html = `
+      <div class="form-header">
+        <h1>${esc(form.name)}</h1>
+        ${form.description ? `<p>${esc(form.description)}</p>` : ''}
+      </div>
+      <div id="form-message"></div>
+      <form id="public-form" novalidate>`;
+
+    fields.forEach(f => { html += renderField(f); });
+
+    html += `<button type="submit" class="btn-submit">Submit Form</button></form>`;
+    document.getElementById('form-container').innerHTML = html;
+    attachSubmitHandler(form.id);
+  }
+
+  function renderField(f) {
+    const req  = f.is_required ? '<span class="req">*</span>' : '';
+    const ph   = f.placeholder ? `placeholder="${esc(f.placeholder)}"` : '';
+    const name = f.field_name;
+    let input  = '';
+
+    switch (f.field_type) {
+      case 'text':
+        input = `<input type="text" id="${name}" name="${name}" ${ph} />`;
+        break;
+      case 'email':
+        input = `<input type="email" id="${name}" name="${name}" ${ph} />`;
+        break;
+      case 'number':
+        input = `<input type="number" id="${name}" name="${name}" ${ph} />`;
+        break;
+      case 'textarea':
+        input = `<textarea id="${name}" name="${name}" ${ph}></textarea>`;
+        break;
+      case 'dropdown':
+        input = `<select id="${name}" name="${name}">
+          <option value="">— Select —</option>
+          ${(f.options||[]).map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('')}
+        </select>`;
+        break;
+      case 'radio':
+        input = `<div class="radio-group">
+          ${(f.options||[]).map(o=>`
+            <label class="option-item">
+              <input type="radio" name="${name}" value="${esc(o)}" />
+              <span>${esc(o)}</span>
+            </label>`).join('')}
+        </div>`;
+        break;
+      case 'checkbox':
+        input = `<div class="checkbox-group">
+          ${(f.options||[]).map(o=>`
+            <label class="option-item">
+              <input type="checkbox" name="${name}[]" value="${esc(o)}" />
+              <span>${esc(o)}</span>
+            </label>`).join('')}
+        </div>`;
+        break;
+      default:
+        input = `<input type="text" id="${name}" name="${name}" ${ph} />`;
+    }
+
+    return `
+      <div class="field-group" data-field="${name}">
+        <label for="${name}">${esc(f.label)}${req}</label>
+        ${input}
+        <div class="field-error" id="err-${name}"></div>
+      </div>`;
+  }
+
+  function attachSubmitHandler(formId) {
+    document.getElementById('public-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      clearErrors();
+      const btn  = this.querySelector('.btn-submit');
+      const body = collectValues(this);
+
+      btn.disabled    = true;
+      btn.textContent = 'Submitting…';
+
+      try {
+        const res  = await fetch(`${API_BASE}/forms/${formId}/submissions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          showMessage('Your response has been recorded. Thank you!', 'success');
+          this.reset();
+        } else {
+          if (data.errors) {
+            Object.entries(data.errors).forEach(([k, v]) => showFieldError(k, v));
+          }
+          showMessage(data.message || 'Submission failed.', 'error');
+        }
+      } catch (_) {
+        showMessage('Network error. Please try again.', 'error');
+      } finally {
+        btn.disabled    = false;
+        btn.textContent = 'Submit Form';
+      }
+    });
+  }
+
+  function collectValues(form) {
+    const data = {};
+    const fd   = new FormData(form);
+    for (const [key, value] of fd.entries()) {
+      if (key.endsWith('[]')) {
+        const k = key.slice(0, -2);
+        data[k] = data[k] ? [...data[k], value] : [value];
+      } else {
+        data[key] = value;
+      }
+    }
+    return data;
+  }
+
+  function showMessage(msg, type) {
+    const el   = document.getElementById('form-message');
+    el.className = type;
+    el.textContent = msg;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function showFieldError(name, msg) {
+    const el = document.getElementById(`err-${name}`);
+    if (el) { el.textContent = msg; el.classList.add('show'); }
+    const input = document.querySelector(`[name="${name}"], [name="${name}[]"]`);
+    if (input) input.classList.add('invalid');
+  }
+
+  function clearErrors() {
+    document.querySelectorAll('.field-error').forEach(e => { e.textContent=''; e.classList.remove('show'); });
+    document.querySelectorAll('.invalid').forEach(e => e.classList.remove('invalid'));
+    const msg = document.getElementById('form-message');
+    msg.className = ''; msg.textContent = '';
+  }
+
+  function esc(str) {
+    return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+})();
+</script>
+</body>
+</html>
