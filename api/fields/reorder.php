@@ -1,5 +1,7 @@
 <?php
-declare(strict_types=1);
+ini_set('display_errors', '0');
+error_reporting(0);
+
 // PUT /api/forms/{form_id}/fields/reorder
 // Body: { "order": [3, 1, 5, 2] }  — array of field IDs in new order
 

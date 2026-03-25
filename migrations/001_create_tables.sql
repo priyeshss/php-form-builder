@@ -1,15 +1,15 @@
--- PHP Form Builder - Database Migration
--- Run this file to set up the database schema
+-- FormCraft - Database Migration
+-- Compatible with MySQL 5.6+ and MySQL 8.x
 -- Default login: admin@admin.com / Admin@1234
 
-CREATE DATABASE IF NOT EXISTS `php_form_builder`
+CREATE DATABASE IF NOT EXISTS `if0_41473140_php_form_builder`
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
-USE `php_form_builder`;
+USE `if0_41473140_php_form_builder`;
 
 -- -----------------------------------------------
--- Users (Admin)
+-- Users
 -- -----------------------------------------------
 CREATE TABLE IF NOT EXISTS `users` (
   `id`         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Password: Admin@1234  (bcrypt cost=10, PHP compatible $2y$)
+-- Password: Admin@1234
 INSERT INTO `users` (`name`, `email`, `password`, `role`) VALUES
 ('Administrator', 'admin@admin.com', '$2y$10$mNzmlKBYeGq0fJAvtomm8uBRhgPrdeybx2Ms7Qs/xvGsB./oJwTN.', 'admin');
 
@@ -31,7 +31,7 @@ INSERT INTO `users` (`name`, `email`, `password`, `role`) VALUES
 CREATE TABLE IF NOT EXISTS `refresh_tokens` (
   `id`         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `user_id`    INT UNSIGNED NOT NULL,
-  `token`      VARCHAR(512) NOT NULL UNIQUE,
+  `token`      TEXT NOT NULL,
   `expires_at` DATETIME NOT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS `forms` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- -----------------------------------------------
--- Fields
+-- Fields  (options stored as TEXT, not JSON column)
 -- -----------------------------------------------
 CREATE TABLE IF NOT EXISTS `fields` (
   `id`           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS `fields` (
   `field_type`   ENUM('text','email','number','textarea','dropdown','radio','checkbox','file') NOT NULL,
   `label`        VARCHAR(200) NOT NULL,
   `placeholder`  VARCHAR(200) DEFAULT NULL,
-  `options`      JSON DEFAULT NULL,
+  `options`      TEXT DEFAULT NULL,
   `is_required`  TINYINT(1) NOT NULL DEFAULT 0,
   `sort_order`   INT UNSIGNED NOT NULL DEFAULT 0,
   `created_at`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS `submissions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- -----------------------------------------------
--- Submission Values (EAV)
+-- Submission Values
 -- -----------------------------------------------
 CREATE TABLE IF NOT EXISTS `submission_values` (
   `id`            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

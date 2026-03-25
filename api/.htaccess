@@ -5,7 +5,6 @@ AcceptPathInfo On
     RewriteEngine On
     RewriteBase /php-form-builder/api/
 
-    # Pass Authorization header through to PHP
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 

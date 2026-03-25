@@ -1,12 +1,14 @@
 <?php
-declare(strict_types=1);
+ini_set('display_errors', '0');
+error_reporting(0);
+
 // POST /api/auth/refresh
 
 $req   = new Request();
 $token = $req->get('refresh_token');
 if (!$token) Response::error('Refresh token required.', 400);
 
-$payload = JWT::verify($token, isRefresh: true);
+$payload = JWT::verify($token, true);
 if (!$payload) Response::error('Invalid or expired refresh token.', 401);
 
 $db   = Database::getInstance();
@@ -19,7 +21,7 @@ $db->prepare('DELETE FROM refresh_tokens WHERE token = ?')->execute([$token]);
 
 $newPayload      = ['sub' => $payload['sub'], 'email' => $payload['email'], 'role' => $payload['role']];
 $accessToken     = JWT::generate($newPayload);
-$newRefreshToken = JWT::generate($newPayload, isRefresh: true);
+$newRefreshToken = JWT::generate($newPayload, true);
 
 $exp  = date('Y-m-d H:i:s', time() + (int) env('JWT_REFRESH_EXPIRY', 604800));
 $stmt = $db->prepare('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, ?)');

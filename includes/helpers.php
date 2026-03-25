@@ -1,9 +1,9 @@
 <?php
-declare(strict_types=1);
+// PHP 7.x compatible — no str_starts_with / str_contains / str_ends_with
 
 class Response
 {
-    public static function json(mixed $data, int $code = 200): void
+    public static function json($data, $code = 200)
     {
         http_response_code($code);
         header('Content-Type: application/json; charset=utf-8');
@@ -11,18 +11,18 @@ class Response
         exit;
     }
 
-    public static function success(mixed $data = null, string $message = 'Success', int $code = 200): void
+    public static function success($data = null, $message = 'Success', $code = 200)
     {
-        self::json([
+        self::json(array(
             'success' => true,
             'message' => $message,
             'data'    => $data,
-        ], $code);
+        ), $code);
     }
 
-    public static function error(string $message, int $code = 400, mixed $errors = null): void
+    public static function error($message, $code = 400, $errors = null)
     {
-        $body = ['success' => false, 'message' => $message];
+        $body = array('success' => false, 'message' => $message);
         if ($errors !== null) $body['errors'] = $errors;
         self::json($body, $code);
     }
@@ -30,55 +30,66 @@ class Response
 
 class Request
 {
-    private array $body;
-    private array $query;
+    private $body;
+    private $query;
 
     public function __construct()
     {
         $raw = file_get_contents('php://input');
-        $ct  = $_SERVER['CONTENT_TYPE'] ?? '';
+        $ct  = isset($_SERVER['CONTENT_TYPE']) ? $_SERVER['CONTENT_TYPE'] : '';
 
-        if (str_contains($ct, 'application/json')) {
-            $this->body = (array) (json_decode($raw ?: '{}', true) ?? []);
+        // str_contains polyfill
+        if (strpos($ct, 'application/json') !== false) {
+            $decoded    = json_decode($raw ? $raw : '{}', true);
+            $this->body = is_array($decoded) ? $decoded : array();
         } else {
             $this->body = $_POST;
         }
         $this->query = $_GET;
     }
 
-    public function get(string $key, mixed $default = null): mixed
+    public function get($key, $default = null)
     {
-        return $this->body[$key] ?? $this->query[$key] ?? $default;
+        if (isset($this->body[$key]))  return $this->body[$key];
+        if (isset($this->query[$key])) return $this->query[$key];
+        return $default;
     }
 
-    public function all(): array { return array_merge($this->query, $this->body); }
+    public function all()
+    {
+        return array_merge($this->query, $this->body);
+    }
 
-    public function only(array $keys): array
+    public function only($keys)
     {
         $all = $this->all();
         return array_intersect_key($all, array_flip($keys));
     }
 
-    public function method(): string { return strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET'); }
-
-    public function validate(array $rules): array
+    public function method()
     {
-        $errors = [];
+        return strtoupper(isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET');
+    }
+
+    public function validate($rules)
+    {
+        $errors = array();
         foreach ($rules as $field => $rule) {
-            $value = $this->get($field);
+            $value    = $this->get($field);
             $ruleList = explode('|', $rule);
             foreach ($ruleList as $r) {
                 if ($r === 'required' && ($value === null || $value === '')) {
                     $errors[$field][] = "$field is required.";
                 }
-                if (str_starts_with($r, 'min:')) {
+                // str_starts_with polyfill
+                if (strncmp($r, 'min:', 4) === 0) {
                     $min = (int) substr($r, 4);
-                    if (strlen((string)($value ?? '')) < $min)
+                    if (strlen((string)($value !== null ? $value : '')) < $min)
                         $errors[$field][] = "$field must be at least $min characters.";
                 }
-                if (str_starts_with($r, 'max:')) {
+                if (strncmp($r, 'max:', 4) === 0) {
                     $max = (int) substr($r, 4);
-                    if (strlen((string)($value ?? '')) > $max)
+                    if (strlen((string)($value !== null ? $value : '')) > $max)
                         $errors[$field][] = "$field must not exceed $max characters.";
                 }
                 if ($r === 'email' && $value && !filter_var($value, FILTER_VALIDATE_EMAIL)) {
@@ -90,7 +101,7 @@ class Request
     }
 }
 
-function sanitize(mixed $value): mixed
+function sanitize($value)
 {
     if (is_string($value)) {
         return htmlspecialchars(strip_tags(trim($value)), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -101,10 +112,10 @@ function sanitize(mixed $value): mixed
     return $value;
 }
 
-function requireAuth(): array
+function requireAuth()
 {
-    // Accept token from Authorization header OR ?token= query param (for browser downloads)
-    $token = JWT::fromHeader() ?? ($_GET['token'] ?? null);
+    $token = JWT::fromHeader();
+    if (!$token && isset($_GET['token'])) $token = trim($_GET['token']);
     if (!$token) Response::error('Unauthorized: missing token.', 401);
 
     $payload = JWT::verify($token);
@@ -113,9 +124,9 @@ function requireAuth(): array
     return $payload;
 }
 
-function generateUUID(): string
+function generateUUID()
 {
-    $data    = random_bytes(16);
+    $data    = function_exists('random_bytes') ? random_bytes(16) : openssl_random_pseudo_bytes(16);
     $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
     $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
     return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));

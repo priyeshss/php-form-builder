@@ -1,5 +1,7 @@
 <?php
-declare(strict_types=1);
+ini_set('display_errors', '0');
+error_reporting(0);
+
 // POST /api/auth/login
 
 $req    = new Request();
@@ -21,7 +23,7 @@ if (!$user || !password_verify($password, $user['password'])) {
 $payload = ['sub' => $user['id'], 'email' => $user['email'], 'role' => $user['role']];
 
 $accessToken  = JWT::generate($payload);
-$refreshToken = JWT::generate($payload, isRefresh: true);
+$refreshToken = JWT::generate($payload, true);
 
 // Store refresh token
 $exp  = date('Y-m-d H:i:s', time() + (int) env('JWT_REFRESH_EXPIRY', 604800));

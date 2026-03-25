@@ -1,30 +1,20 @@
 <?php
-declare(strict_types=1);
+// PHP 7.x compatible — no declare(strict_types), no mixed type hints
 
-/**
- * Load .env file and make variables available via env()
- */
-function loadEnv(string $path): void
+define('APP_CONFIG', array(
+    'DB_HOST'            => 'sql100.infinityfree.com',
+    'DB_PORT'            => '3306',
+    'DB_DATABASE'        => 'if0_41473140_php_form_builder',
+    'DB_USERNAME'        => 'if0_41473140',
+    'DB_PASSWORD'        => 'WkB2XK5UkAFg',
+    'APP_ENV'            => 'production',
+    'APP_URL'            => 'https://priyeshsurti-phpformbuilder.infinityfree.me/php-form-builder',
+    'JWT_SECRET'         => 'Priyesh@FormCraft2024#SecretKey!XyZ99',
+    'JWT_EXPIRY'         => '3600',
+    'JWT_REFRESH_EXPIRY' => '604800',
+));
+
+function env($key, $default = null)
 {
-    if (!file_exists($path)) {
-        throw new RuntimeException(".env file not found at: $path");
-    }
-    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        $line = trim($line);
-        if ($line === '' || str_starts_with($line, '#')) continue;
-        [$key, $value] = array_map('trim', explode('=', $line, 2));
-        $value = trim($value, '"\'');
-        putenv("$key=$value");
-        $_ENV[$key] = $value;
-    }
+    return isset(APP_CONFIG[$key]) ? APP_CONFIG[$key] : $default;
 }
-
-function env(string $key, mixed $default = null): mixed
-{
-    $val = getenv($key);
-    return $val === false ? $default : $val;
-}
-
-// Load .env from project root (two levels up from config/)
-loadEnv(dirname(__DIR__) . '/.env');
