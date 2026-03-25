@@ -126,6 +126,7 @@ Click **Start All** in Laragon.
 ### 6. Open the admin panel
 ```
 http://localhost/php-form-builder/admin/login.html
+https://priyeshsurti-phpformbuilder.infinityfree.me/php-form-builder/admin/login.html
 ```
 
 **Default credentials:**
